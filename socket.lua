@@ -1,6 +1,7 @@
 local module = {}  
 
 OW_PIN = 5
+hold = false
 
 function publish(topic, message)
   m:publish(topic, message, 1, 0)
@@ -17,16 +18,21 @@ function debounced_trigger(pin, onchange_function, dwell)
   gpio.trig(pin, 'both', trigger_cb)
 end
 
-
 function onChange (pin)
-  local pin_state = gpio.read(pin)
-  publish(config.TOPIC .. "D"..pin, pin_state)
-  local function late_cb(pin, pin_state_old)
-    if(gpio.read(pin) == pin_state_old) then
-      publish(config.TOPIC .. "D"..pin, pin_state_old..".")
+  local released = gpio.read(pin) == 1
+  if released and hold then
+    publish(config.TOPIC .. "D"..pin, "release")
+  elseif released and not hold then
+    publish(config.TOPIC .. "D"..pin, "press")
+  end
+  hold = false
+  local function late_cb(pin)
+    if not released then
+      hold = true
+      publish(config.TOPIC .. "D"..pin, "hold")
     end
   end
-  tmr.alarm(6, 1000, tmr.ALARM_SINGLE, function() late_cb(pin, pin_state) end)
+  tmr.alarm(6, 1000, tmr.ALARM_SINGLE, function() late_cb(pin) end)
 end
 
 local function watch_di()
